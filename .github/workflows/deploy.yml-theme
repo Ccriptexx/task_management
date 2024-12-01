@@ -1,0 +1,36 @@
+name: Deploy to TEMPLATE
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Install sshpass
+        run: sudo apt-get update && sudo apt-get install -y sshpass
+
+      - name: Deploy to TEMPLATE
+        env:
+          SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          sshpass -p $SSH_PASSWORD ssh -o StrictHostKeyChecking=no ${{ secrets.USERNAME }}@${{ secrets.HOST }} << "EOF"
+            git config --global credential.helper 'store --file ~/.git-credentials'
+            echo "https://${{ secrets.GH_PAT }}:x-oauth-basic@github.com" > ~/.git-credentials
+            cd /var/www/html/##TEMPLATE##
+            git pull origin master
+            npm cache clean --force
+            npm install
+            npm run build
+            pm2 reload TEMPLATE
+            sleep 20
+            pm2 reload proxy-service
+            rm -f ~/.git-credentials
+          EOF
+
+
